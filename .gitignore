@@ -1,0 +1,6 @@
+cat > .gitignore << 'EOF'
+/target
+.env
+.lvr-cache/
+*.log
+EOF
