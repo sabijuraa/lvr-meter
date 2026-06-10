@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-release:
+    name: Build Release Binary
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Strip binary
+        run: strip target/release/lvr-meter
+
+      - name: Upload release binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: lvr-meter-linux-x86_64
+          path: target/release/lvr-meter
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build-release
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lvr-meter-linux-x86_64
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: lvr-meter
+          body: |
+            ## lvr-meter ${{ github.ref_name }}
+
+            ### Install
+
+            Download the binary, make it executable, and run:
+
+```bash
+            chmod +x lvr-meter
+            ./lvr-meter --wallet <wallet> --from 2025-01-01 --to 2025-03-31
+```
+
+            ### Requirements
+
+            - Helius API key (free tier at helius.dev)
+            - Set environment variable: `export HELIUS_API_KEY=your_key`
+
+            ### What changed
+
+            See [CHANGELOG.md](CHANGELOG.md) for full details.
+          draft: false
+          prerelease: false
