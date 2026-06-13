@@ -1,13 +1,18 @@
 mod cli;
 mod config;
+mod output;
 
 use clap::Parser;
 use cli::Cli;
 use config::Config;
+use output::summary::print_config_summary;
 
 fn main() {
     // Load .env file if it exists
     dotenvy::dotenv().ok();
+
+    // Initialize tracing — reads RUST_LOG env var for log level
+    tracing_subscriber::fmt::init();
 
     // Parse CLI arguments
     let cli = Cli::parse();
@@ -21,19 +26,23 @@ fn main() {
         cli.pool,
     );
 
-    match config {
-        Ok(c) => {
-            println!("=== lvr-meter config ===");
-            println!("Wallet:   {}", c.wallet.as_str());
-            println!("From:     {}", c.date_range.from_date());
-            println!("To:       {}", c.date_range.to_date());
-            println!("Days:     {}", c.date_range.num_days());
-            println!("Protocol: {:?}", c.filter.protocol);
-            println!("RPC URL:  {}", c.rpc_url);
-        }
+    let config = match config {
+        Ok(c)  => c,
         Err(e) => {
-            eprintln!("Error: {e}");
+            tracing::error!("Invalid configuration: {e}");
             std::process::exit(1);
         }
+    };
+
+    tracing::info!("Configuration validated successfully");
+
+    // Dry run — print summary and exit without network calls
+    if cli.dry_run {
+        print_config_summary(&config);
+        std::process::exit(0);
     }
+
+    
+    tracing::info!("Starting analysis...");
+    println!("Full analysis not yet implemented — use --dry-run");
 }
