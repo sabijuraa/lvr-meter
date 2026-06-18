@@ -6,7 +6,7 @@ pub use date_range::DateRange;
 pub use filters::{PoolFilter, Protocol};
 pub use types::WalletAddress;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use std::env;
 
 pub struct Config {
@@ -26,7 +26,11 @@ impl Config {
         specific_pool: Option<String>,
     ) -> Result<Self> {
         let helius_api_key = env::var("HELIUS_API_KEY")
-            .context("HELIUS_API_KEY environment variable not set")?;
+       .context("HELIUS_API_KEY environment variable not set")?;
+
+       if helius_api_key.is_empty() {
+       bail!("HELIUS_API_KEY environment variable is empty");
+  }
 
         let rpc_url = format!(
             "https://mainnet.helius-rpc.com/?api-key={}",
@@ -43,6 +47,7 @@ impl Config {
             date_range,
             filter,
             rpc_url,
+            #[allow(dead_code)]
             helius_api_key,
         })
     }

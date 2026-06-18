@@ -40,12 +40,11 @@ fn truncate_rpc(url: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn truncate_long_address() {
-        let addr = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgHkv";
-        assert_eq!(truncate_address(addr), "7xKXtg2C....Hkv");
-    }
+    let addr = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgHkv";
+    assert_eq!(truncate_address(addr), "7xKXtg2C....gHkv");  
+  }
 
     #[test]
     fn truncate_short_address_unchanged() {

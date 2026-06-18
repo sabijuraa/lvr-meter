@@ -26,4 +26,8 @@ pub struct Cli {
     /// Specific pool address to filter by (optional)
     #[arg(long)]
     pub pool: Option<String>,
+
+    /// Print config summary and exit without hitting the network
+    #[arg(long)]
+    pub dry_run: bool,
 }

@@ -20,6 +20,9 @@ anyhow = "1.0.82"
 chrono = { version = "0.4.38", features = ["serde"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+dotenvy = "0.15.7"
 
 [dev-dependencies]
 tokio-test = "0.4.4"
+assert_cmd = "2"
+predicates = "3"

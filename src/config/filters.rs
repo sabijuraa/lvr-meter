@@ -41,7 +41,7 @@ impl PoolFilter {
         }
         Ok(Self { protocol, specific_pool })
     }
-
+#[allow(dead_code)]
     pub fn default() -> Self {
         Self {
             protocol:      Protocol::Both,
