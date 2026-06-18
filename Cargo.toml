@@ -21,6 +21,11 @@ chrono = { version = "0.4.38", features = ["serde"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 dotenvy = "0.15.7"
+borsh = "0.10"
+bs58 = "0.5"
+solana-account-decoder = "1.18.26"
+solana-client = "1.18.26"
+solana-sdk = "1.18.26"
 
 [dev-dependencies]
 tokio-test = "0.4.4"
