@@ -3,3 +3,4 @@ pub mod raydium;
 pub mod account_state;
 pub mod types;
 pub mod filters;
+pub mod batch;
