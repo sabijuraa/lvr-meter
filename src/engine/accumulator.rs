@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate};
 
 use crate::engine::lvr::compute_instantaneous_lvr;
 use crate::parser::types::SwapEvent;
