@@ -3,8 +3,7 @@ mod cli;
 use clap::Parser;
 use cli::Cli;
 use lvr_meter::config::Config;
-use lvr_meter::fetcher::inventory::PositionInventory;
-use lvr_meter::fetcher::rpc::RpcClientWrapper;
+use lvr_meter::fetcher::pipeline::FetchPipeline;
 use lvr_meter::output::position_table::{print_position_inventory, PositionRow};
 use lvr_meter::output::summary::print_config_summary;
 
@@ -23,7 +22,7 @@ fn main() {
     );
 
     let config = match config {
-        Ok(c) => c,
+        Ok(c)  => c,
         Err(e) => {
             tracing::error!("Invalid configuration: {e}");
             std::process::exit(1);
@@ -37,22 +36,35 @@ fn main() {
         std::process::exit(0);
     }
 
-    let client    = RpcClientWrapper::new(&config.rpc_url);
-    let inventory = match PositionInventory::fetch(&config.wallet, &client) {
-        Ok(inv) => inv,
-        Err(e)  => {
-            tracing::error!("Failed to fetch position inventory: {e}");
+    let date_range = config.date_range.clone();
+
+    let pipeline = match FetchPipeline::new(config) {
+        Ok(p)  => p,
+        Err(e) => {
+            tracing::error!("Failed to initialize fetch pipeline: {e}");
+            std::process::exit(1);
+        }
+    };
+
+    let result = match pipeline.run_for_dates(
+        date_range.from_date(),
+        date_range.to_date(),
+    ) {
+        Ok(r)  => r,
+        Err(e) => {
+            tracing::error!("Fetch pipeline failed: {e}");
             std::process::exit(1);
         }
     };
 
     tracing::info!(
-        "Loaded {} positions across {} pools",
-        inventory.position_count(),
-        inventory.pool_count()
+        "Fetched {} transactions across {} pools",
+        result.total_transactions(),
+        result.pool_count()
     );
 
-    let rows: Vec<PositionRow> = inventory
+    let rows: Vec<PositionRow> = result
+        .inventory
         .positions
         .iter()
         .map(|p| PositionRow {
@@ -65,6 +77,12 @@ fn main() {
         .collect();
 
     print_position_inventory(&rows);
+
+    println!(
+        "\nFetched {} swap transactions across {} pools, cached to .lvr-cache/",
+        result.total_transactions(),
+        result.pool_count()
+    );
 }
 
 fn truncate_pubkey(s: &str) -> String {

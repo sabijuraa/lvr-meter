@@ -9,7 +9,7 @@ pub use types::WalletAddress;
 use crate::fetcher::helius::HeliusClient;
 use anyhow::{bail, Context, Result};
 use std::env;
-
+#[derive(Clone)]
 pub struct Config {
     pub wallet:         WalletAddress,
     pub date_range:     DateRange,

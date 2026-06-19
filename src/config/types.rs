@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 
 const BASE58_ALPHABET: &str =
     "123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
+#[derive(Clone)]
 pub struct WalletAddress(String);
 
 impl WalletAddress {

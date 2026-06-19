@@ -3,7 +3,7 @@ use chrono::{Local, NaiveDate};
 
 const MAX_RANGE_DAYS: i64 = 90;
 const DATE_FORMAT: &str = "%Y-%m-%d";
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DateRange {
     pub from: NaiveDate,
     pub to: NaiveDate,

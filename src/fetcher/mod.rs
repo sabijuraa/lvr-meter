@@ -8,3 +8,4 @@ pub mod cache;
 pub mod tx_fetcher;
 pub mod rate_limiter;
 pub mod multi_fetcher;
+pub mod pipeline;
