@@ -6,3 +6,4 @@ pub mod rpc;
 pub mod slot_time;
 pub mod cache;
 pub mod tx_fetcher;
+pub mod rate_limiter;
