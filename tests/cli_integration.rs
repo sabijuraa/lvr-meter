@@ -139,7 +139,7 @@ fn reversed_date_range_exits_nonzero() {
 fn missing_helius_key_exits_nonzero() {
     Command::cargo_bin("lvr-meter")
         .unwrap()
-        .env("HELIUS_API_KEY", "")      // set to empty instead of removing
+        .env("HELIUS_API_KEY", "")      
         .args(["--wallet", WALLET, "--from", FROM, "--to", TO, "--dry-run"])
         .assert()
         .failure();

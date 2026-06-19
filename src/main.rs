@@ -3,10 +3,10 @@ mod cli;
 use clap::Parser;
 use cli::Cli;
 use lvr_meter::config::Config;
-use lvr_meter::output::summary::print_config_summary;
-use lvr_meter::output::position_table::{PositionRow, print_position_inventory};
-use lvr_meter::fetcher::raydium::position_fetcher::fetch_positions;
+use lvr_meter::fetcher::inventory::PositionInventory;
 use lvr_meter::fetcher::rpc::RpcClientWrapper;
+use lvr_meter::output::position_table::{print_position_inventory, PositionRow};
+use lvr_meter::output::summary::print_config_summary;
 
 fn main() {
     dotenvy::dotenv().ok();
@@ -23,7 +23,7 @@ fn main() {
     );
 
     let config = match config {
-        Ok(c)  => c,
+        Ok(c) => c,
         Err(e) => {
             tracing::error!("Invalid configuration: {e}");
             std::process::exit(1);
@@ -37,25 +37,30 @@ fn main() {
         std::process::exit(0);
     }
 
-    // Phase 2 — fetch positions
-    let client = RpcClientWrapper::new(&config.rpc_url);
-
-    let positions = match fetch_positions(&config.wallet, &client) {
-        Ok(p)  => p,
-        Err(e) => {
-            tracing::error!("Failed to fetch positions: {e}");
+    let client    = RpcClientWrapper::new(&config.rpc_url);
+    let inventory = match PositionInventory::fetch(&config.wallet, &client) {
+        Ok(inv) => inv,
+        Err(e)  => {
+            tracing::error!("Failed to fetch position inventory: {e}");
             std::process::exit(1);
         }
     };
 
-    let rows: Vec<PositionRow> = positions
+    tracing::info!(
+        "Loaded {} positions across {} pools",
+        inventory.position_count(),
+        inventory.pool_count()
+    );
+
+    let rows: Vec<PositionRow> = inventory
+        .positions
         .iter()
         .map(|p| PositionRow {
             pool_id:      truncate_pubkey(&p.pool_id.to_string()),
             tick_lower:   p.tick_lower_index,
             tick_upper:   p.tick_upper_index,
             liquidity:    p.liquidity,
-            fee_rate_bps: 0, // populated in Phase 2 completion — pool state fetch
+            fee_rate_bps: 0,
         })
         .collect();
 

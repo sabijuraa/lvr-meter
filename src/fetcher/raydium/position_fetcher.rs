@@ -1,11 +1,10 @@
 use anyhow::{Context, Result};
 use solana_client::{
-    rpc_client::RpcClient,
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
     rpc_filter::{Memcmp, RpcFilterType},
 };
 use solana_account_decoder::UiAccountEncoding;
-use solana_sdk::{commitment_config::CommitmentConfig, program_pack::Pack, pubkey::Pubkey};
+use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 use std::str::FromStr;
 
 use crate::config::WalletAddress;
@@ -14,15 +13,8 @@ use crate::fetcher::raydium::types::{
 };
 use crate::fetcher::rpc::RpcClientWrapper;
 
-/// SPL Token program ID
 const TOKEN_PROGRAM_ID: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 
-/// Fetch all Raydium CLMM positions held by a wallet.
-///
-/// Flow:
-///   1. Get all SPL token accounts owned by the wallet (NFT mints with amount=1)
-///   2. For each NFT mint, derive the PersonalPosition PDA
-///   3. Fetch and deserialize all matching accounts
 pub fn fetch_positions(
     wallet: &WalletAddress,
     client: &RpcClientWrapper,
@@ -38,7 +30,7 @@ pub fn fetch_positions(
 
     let positions = fetch_positions_by_discriminator(&client.client)?;
 
-    let wallet_positions: Vec<PersonalPositionState> = positions
+    let wallet_positions = positions
         .into_iter()
         .filter(|p| nft_mints.contains(&p.nft_mint))
         .collect();
@@ -46,9 +38,8 @@ pub fn fetch_positions(
     Ok(wallet_positions)
 }
 
-/// Get all NFT mints (amount=1 tokens) held by a wallet
 fn fetch_nft_mints_for_wallet(
-    client: &RpcClient,
+    client: &solana_client::rpc_client::RpcClient,
     wallet: &Pubkey,
 ) -> Result<Vec<Pubkey>> {
     let token_program = Pubkey::from_str(TOKEN_PROGRAM_ID).unwrap();
@@ -66,16 +57,13 @@ fn fetch_nft_mints_for_wallet(
         if let solana_account_decoder::UiAccountData::Json(parsed) =
             &keyed_account.account.data
         {
-            if let Some(info) = parsed.parsed
-                .get("info")
-            {
+            if let Some(info) = parsed.parsed.get("info") {
                 let amount = info
                     .get("tokenAmount")
                     .and_then(|ta| ta.get("amount"))
                     .and_then(|a| a.as_str())
                     .unwrap_or("0");
 
-                // NFTs have amount=1 and decimals=0
                 let decimals = info
                     .get("tokenAmount")
                     .and_then(|ta| ta.get("decimals"))
@@ -96,19 +84,15 @@ fn fetch_nft_mints_for_wallet(
     Ok(nft_mints)
 }
 
-/// Fetch all PersonalPosition accounts from Raydium CLMM program
-/// filtered by the account discriminator
 fn fetch_positions_by_discriminator(
-    client: &RpcClient,
+    client: &solana_client::rpc_client::RpcClient,
 ) -> Result<Vec<PersonalPositionState>> {
     let program_id = Pubkey::from_str(RAYDIUM_CLMM_PROGRAM_ID).unwrap();
 
-    let filters = vec![
-        RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
-            0,
-            PERSONAL_POSITION_DISCRIMINATOR.to_vec(),
-        )),
-    ];
+    let filters = vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+        0,
+        PERSONAL_POSITION_DISCRIMINATOR.to_vec(),
+    ))];
 
     let config = RpcProgramAccountsConfig {
         filters: Some(filters),
@@ -129,7 +113,7 @@ fn fetch_positions_by_discriminator(
     for (_pubkey, account) in accounts {
         match PersonalPositionState::from_account_data(&account.data) {
             Ok(pos) => positions.push(pos),
-            Err(e) => tracing::warn!("Failed to deserialize position account: {}", e),
+            Err(e)  => tracing::warn!("Failed to deserialize position: {}", e),
         }
     }
 
