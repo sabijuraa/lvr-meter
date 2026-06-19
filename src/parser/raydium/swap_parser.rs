@@ -9,21 +9,18 @@ use crate::parser::account_state::{extract_pool_state_before_after, PoolStateSna
 use crate::parser::price::sqrt_price_x64_to_price;
 use crate::parser::raydium::discriminator::is_raydium_swap;
 use crate::parser::types::{SwapDirection, SwapEvent};
-
 pub fn parse_swap_event(
     tx:         &EncodedTransactionWithStatusMeta,
     pool:       &Pubkey,
     pool_state: &PoolState,
+    slot:       u64,
+    block_time: i64,
 ) -> Option<SwapEvent> {
     let sig = extract_signature(tx).unwrap_or_else(|| "unknown".to_string());
 
-    // Confirm this transaction contains a Raydium swap instruction
     if !contains_raydium_swap(tx) {
         return None;
     }
-
-    let slot      = tx.slot;
-    let timestamp = tx.block_time.unwrap_or(0);
 
     let (pre, post) = match extract_pool_state_before_after(tx, pool) {
         Some(states) => states,
@@ -37,7 +34,6 @@ pub fn parse_swap_event(
     };
 
     if pre.sqrt_price_x64 == post.sqrt_price_x64 {
-        // Price did not move — not a swap that affected this pool
         return None;
     }
 
@@ -56,8 +52,8 @@ pub fn parse_swap_event(
 
     Some(SwapEvent {
         slot,
-        timestamp,
-        pool:              *pool,
+        timestamp: block_time,
+        pool: *pool,
         price_before,
         price_after,
         sqrt_price_before: pre.sqrt_price_x64,
@@ -67,7 +63,6 @@ pub fn parse_swap_event(
         direction,
     })
 }
-
 /// Returns true if the transaction contains at least one Raydium CLMM swap instruction
 fn contains_raydium_swap(tx: &EncodedTransactionWithStatusMeta) -> bool {
     let ui_tx = match &tx.transaction {
@@ -75,7 +70,7 @@ fn contains_raydium_swap(tx: &EncodedTransactionWithStatusMeta) -> bool {
         _ => return false,
     };
 
-    let (account_keys, instructions) = match &ui_tx.message {
+    let (_account_keys, instructions) = match &ui_tx.message {
         UiMessage::Raw(msg) => {
             let keys: Vec<Pubkey> = msg
                 .account_keys

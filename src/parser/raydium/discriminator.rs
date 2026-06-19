@@ -1,5 +1,4 @@
 use solana_sdk::pubkey::Pubkey;
-use solana_transaction_status::parse_instruction::ParsedInstruction;
 use std::str::FromStr;
 
 use crate::fetcher::raydium::types::RAYDIUM_CLMM_PROGRAM_ID;

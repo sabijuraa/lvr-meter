@@ -1,11 +1,10 @@
 use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::{
-    EncodedTransactionWithStatusMeta, UiTransaction, UiTransactionStatusMeta,
+    EncodedTransactionWithStatusMeta, UiTransactionStatusMeta,
 };
 
 use crate::fetcher::raydium::pool_state::PoolState;
 
-/// Minimal snapshot of PoolState fields needed for LVR computation
 #[derive(Debug, Clone)]
 pub struct PoolStateSnapshot {
     pub sqrt_price_x64:          u128,
@@ -27,14 +26,6 @@ impl PoolStateSnapshot {
     }
 }
 
-/// Extract pre and post PoolState snapshots from a transaction.
-///
-/// Helius enhanced transactions include `pre_loaded_addresses` and account
-/// data in `meta`. We find the pool account index, then deserialize its
-/// pre/post data from the transaction's account data arrays.
-///
-/// Returns None if the pool address is not found in the transaction or
-/// if account data is unavailable.
 pub fn extract_pool_state_before_after(
     tx:           &EncodedTransactionWithStatusMeta,
     pool_address: &Pubkey,
@@ -59,10 +50,7 @@ pub fn extract_pool_state_before_after(
     ))
 }
 
-/// Extract all account keys from a transaction (static + dynamic)
 fn extract_account_keys(tx: &EncodedTransactionWithStatusMeta) -> Option<Vec<Pubkey>> {
-    use solana_transaction_status::UiTransactionEncoding;
-
     if let solana_transaction_status::EncodedTransaction::Json(ui_tx) = &tx.transaction {
         if let solana_transaction_status::UiMessage::Raw(raw_msg) = &ui_tx.message {
             return Some(
@@ -88,39 +76,14 @@ fn extract_account_keys(tx: &EncodedTransactionWithStatusMeta) -> Option<Vec<Pub
     None
 }
 
-/// Extract raw account data at a given index from pre or post account data
-/// stored in the transaction meta's account_data field.
-///
-/// Helius enhanced transactions store pre/post account data in
-/// `meta.pre_accounts` and `meta.post_accounts` as base64-encoded bytes.
 fn extract_account_data_at_index(
-    meta:    &UiTransactionStatusMeta,
-    index:   usize,
-    is_pre:  bool,
+    _meta:   &UiTransactionStatusMeta,
+    _index:  usize,
+    _is_pre: bool,
 ) -> Option<Vec<u8>> {
-    use solana_account_decoder::UiAccountData;
-
-    let accounts = if is_pre {
-        meta.pre_accounts.as_ref()?
-    } else {
-        meta.post_accounts.as_ref()?
-    };
-
-    let account = accounts.get(index)?;
-
-    match &account.data {
-        UiAccountData::Binary(encoded, encoding) => {
-            use solana_account_decoder::UiAccountEncoding;
-            match encoding {
-                UiAccountEncoding::Base64 => {
-                    use base64::{engine::general_purpose::STANDARD, Engine};
-                    STANDARD.decode(encoded).ok()
-                }
-                _ => None,
-            }
-        }
-        _ => None,
-    }
+    // Standard Solana SDK 1.18.x does not include pre/post account data.
+    // Helius enhanced transaction format required — wired in Phase 7.
+    None
 }
 
 #[cfg(test)]
@@ -147,10 +110,9 @@ mod tests {
         let data  = build_pool_data(12345678, -100, 999_000);
         let state = PoolState::from_account_data(&data).unwrap();
         let snap  = PoolStateSnapshot::from_pool_state(&state);
-
         assert_eq!(snap.sqrt_price_x64, 12345678);
-        assert_eq!(snap.tick_current, -100);
-        assert_eq!(snap.liquidity, 999_000);
+        assert_eq!(snap.tick_current,   -100);
+        assert_eq!(snap.liquidity,      999_000);
     }
 
     #[test]
@@ -159,10 +121,9 @@ mod tests {
         let data  = build_pool_data(sqrt, 42, 5_000_000);
         let state = PoolState::from_account_data(&data).unwrap();
         let snap  = PoolStateSnapshot::from_pool_state(&state);
-
-        assert_eq!(snap.sqrt_price_x64, state.sqrt_price_x64);
-        assert_eq!(snap.tick_current,   state.tick_current);
-        assert_eq!(snap.liquidity,      state.liquidity);
+        assert_eq!(snap.sqrt_price_x64,          state.sqrt_price_x64);
+        assert_eq!(snap.tick_current,            state.tick_current);
+        assert_eq!(snap.liquidity,               state.liquidity);
         assert_eq!(snap.fee_growth_global_0_x64, state.fee_growth_global_0_x64);
         assert_eq!(snap.fee_growth_global_1_x64, state.fee_growth_global_1_x64);
     }
@@ -170,15 +131,13 @@ mod tests {
     #[test]
     fn two_snapshots_can_differ() {
         let pre_data  = build_pool_data(1_000_000, -10, 1_000_000);
-        let post_data = build_pool_data(2_000_000, -9,  1_000_000);
-
+        let post_data = build_pool_data(2_000_000,  -9, 1_000_000);
         let pre  = PoolStateSnapshot::from_pool_state(
             &PoolState::from_account_data(&pre_data).unwrap()
         );
         let post = PoolStateSnapshot::from_pool_state(
             &PoolState::from_account_data(&post_data).unwrap()
         );
-
         assert_ne!(pre.sqrt_price_x64, post.sqrt_price_x64);
         assert_ne!(pre.tick_current,   post.tick_current);
     }
