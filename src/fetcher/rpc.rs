@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use solana_client::{client_error::ClientError, rpc_client::RpcClient};
 use solana_sdk::commitment_config::CommitmentConfig;
-use std::cell::RefCell;
+use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 use tracing::{info, warn};
@@ -12,7 +12,7 @@ pub struct RpcClientWrapper {
     pub client:      RpcClient,
     pub max_retries: u32,
     pub timeout_ms:  u64,
-    rate_limiter:    RefCell<RateLimiter>,
+    rate_limiter:    Mutex<RateLimiter>,
 }
 
 impl RpcClientWrapper {
@@ -24,7 +24,7 @@ impl RpcClientWrapper {
             ),
             max_retries:  5,
             timeout_ms:   500,
-            rate_limiter: RefCell::new(RateLimiter::helius_free_tier()),
+            rate_limiter: Mutex::new(RateLimiter::helius_free_tier()),
         }
     }
 
@@ -36,7 +36,7 @@ impl RpcClientWrapper {
             ),
             max_retries,
             timeout_ms,
-            rate_limiter: RefCell::new(RateLimiter::helius_free_tier()),
+            rate_limiter: Mutex::new(RateLimiter::helius_free_tier()),
         }
     }
 
@@ -44,7 +44,10 @@ impl RpcClientWrapper {
     where
         F: Fn() -> Result<T, ClientError>,
     {
-        self.rate_limiter.borrow_mut().acquire();
+        self.rate_limiter
+            .lock()
+            .expect("rate limiter mutex poisoned")
+            .acquire();
 
         let mut last_err = None;
 
@@ -145,7 +148,7 @@ mod tests {
             "rate limit exceeded",
         ];
         for msg in messages {
-            let lower = msg.to_lowercase();
+            let lower    = msg.to_lowercase();
             let retryable = lower.contains("429")
                 || lower.contains("timeout")
                 || lower.contains("connection")

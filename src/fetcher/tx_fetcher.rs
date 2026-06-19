@@ -1,9 +1,7 @@
 use anyhow::Result;
 use solana_client::rpc_client::GetConfirmedSignaturesForAddress2Config;
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signature};
-use solana_transaction_status::{
-    EncodedTransaction, EncodedTransactionWithStatusMeta, UiTransactionEncoding,
-};
+use solana_transaction_status::{EncodedTransaction, UiTransactionEncoding};
 use std::str::FromStr;
 
 use crate::fetcher::cache::TxCache;
@@ -27,49 +25,39 @@ pub fn fetch_transactions_for_pool(
     tracing::info!("Cache miss — fetching transactions for pool {}", pool);
 
     let mut all_txs: Vec<EncodedTransaction> = Vec::new();
-    let mut before: Option<Signature>        = None;
+    let mut before:  Option<Signature>       = None;
     let mut page                             = 0usize;
 
     loop {
         page += 1;
 
-        let config = GetConfirmedSignaturesForAddress2Config {
-            before,
-            until:      None,
-            limit:      Some(SIGNATURES_PER_PAGE),
-            commitment: Some(CommitmentConfig::confirmed()),
-        };
-
+        let before_copy = before;
         let sigs = client.call_with_retry("get_signatures_for_address", || {
-            client
-                .client
-                .get_signatures_for_address_with_config(pool, config.clone())
+            let config = GetConfirmedSignaturesForAddress2Config {
+                before:     before_copy,
+                until:      None,
+                limit:      Some(SIGNATURES_PER_PAGE),
+                commitment: Some(CommitmentConfig::confirmed()),
+            };
+            client.client.get_signatures_for_address_with_config(pool, config)
         })?;
 
         if sigs.is_empty() {
             break;
         }
 
-        // Filter to slot range
         let in_range: Vec<_> = sigs
             .iter()
-            .filter(|s| {
-                let slot = s.slot;
-                slot >= slot_start && slot <= slot_end
-            })
+            .filter(|s| s.slot >= slot_start && s.slot <= slot_end)
             .collect();
 
         let reached_start = sigs.last().map(|s| s.slot <= slot_start).unwrap_or(false);
 
         tracing::info!(
             "Page {} for pool {} — {} signatures in range, {} total so far",
-            page,
-            pool,
-            in_range.len(),
-            all_txs.len()
+            page, pool, in_range.len(), all_txs.len()
         );
 
-        // Fetch full transactions in batches of 100
         let signatures: Vec<Signature> = in_range
             .iter()
             .filter_map(|s| Signature::from_str(&s.signature).ok())
@@ -80,14 +68,12 @@ pub fn fetch_transactions_for_pool(
             all_txs.extend(txs);
         }
 
-        // Write this page to cache incrementally
         cache.set(pool, slot_start, slot_end, &all_txs)?;
 
         if reached_start || sigs.len() < SIGNATURES_PER_PAGE {
             break;
         }
 
-        // Set cursor for next page
         before = sigs
             .last()
             .and_then(|s| Signature::from_str(&s.signature).ok());
@@ -95,8 +81,7 @@ pub fn fetch_transactions_for_pool(
 
     tracing::info!(
         "Finished fetching pool {} — {} transactions total",
-        pool,
-        all_txs.len()
+        pool, all_txs.len()
     );
 
     Ok(all_txs)
@@ -110,11 +95,8 @@ fn fetch_transaction_batch(
 
     for sig in signatures {
         let sig_copy = *sig;
-        let result = client.call_with_retry("get_transaction", || {
-            client.client.get_transaction(
-                &sig_copy,
-                UiTransactionEncoding::Json,
-            )
+        let result   = client.call_with_retry("get_transaction", || {
+            client.client.get_transaction(&sig_copy, UiTransactionEncoding::Json)
         });
 
         match result {
@@ -139,10 +121,7 @@ mod tests {
 
     #[test]
     fn chunks_signatures_correctly() {
-        let sigs: Vec<Signature> = (0..250)
-            .map(|_| Signature::default())
-            .collect();
-
+        let sigs: Vec<Signature> = (0..250).map(|_| Signature::default()).collect();
         let chunks: Vec<&[Signature]> = sigs.chunks(TX_BATCH_SIZE).collect();
         assert_eq!(chunks.len(), 3);
         assert_eq!(chunks[0].len(), 100);

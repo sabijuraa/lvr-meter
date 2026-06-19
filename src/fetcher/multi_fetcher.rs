@@ -1,8 +1,7 @@
 use anyhow::Result;
 use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::EncodedTransaction;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::task::JoinSet;
 
@@ -30,15 +29,12 @@ pub async fn fetch_all_pools(
 
     tracing::info!(
         "Fetching transactions for {} pools [{}-{}]",
-        pool_ids.len(),
-        slot_start,
-        slot_end
+        pool_ids.len(), slot_start, slot_end
     );
 
     let mut results: HashMap<Pubkey, Vec<EncodedTransaction>> = HashMap::new();
-    let mut chunks  = pool_ids.chunks(MAX_CONCURRENT_POOLS);
 
-    while let Some(chunk) = chunks.next() {
+    for chunk in pool_ids.chunks(MAX_CONCURRENT_POOLS) {
         let mut set: JoinSet<(Pubkey, Result<Vec<EncodedTransaction>>)> = JoinSet::new();
 
         for &pool in chunk {
@@ -46,15 +42,17 @@ pub async fn fetch_all_pools(
             let client_ref = Arc::clone(&client);
 
             set.spawn(async move {
-                let txs = tokio::task::spawn_blocking(move || {
-                    fetch_transactions_for_pool(
-                        &pool,
-                        slot_start,
-                        slot_end,
-                        &cache_ref,
-                        &client_ref,
-                    )
-                })
+                let txs = tokio::task::spawn_blocking(
+                    move || -> Result<Vec<EncodedTransaction>> {
+                        fetch_transactions_for_pool(
+                            &pool,
+                            slot_start,
+                            slot_end,
+                            &cache_ref,
+                            &client_ref,
+                        )
+                    },
+                )
                 .await
                 .unwrap_or_else(|e| Err(anyhow::anyhow!("Task panicked: {}", e)));
 
@@ -65,11 +63,7 @@ pub async fn fetch_all_pools(
         while let Some(join_result) = set.join_next().await {
             match join_result {
                 Ok((pool, Ok(txs))) => {
-                    tracing::info!(
-                        "Pool {} — {} transactions fetched",
-                        pool,
-                        txs.len()
-                    );
+                    tracing::info!("Pool {} — {} transactions fetched", pool, txs.len());
                     results.insert(pool, txs);
                 }
                 Ok((pool, Err(e))) => {
@@ -82,11 +76,7 @@ pub async fn fetch_all_pools(
             }
         }
 
-        tracing::info!(
-            "Progress: {}/{} pools fetched",
-            results.len(),
-            pool_ids.len()
-        );
+        tracing::info!("Progress: {}/{} pools fetched", results.len(), pool_ids.len());
     }
 
     Ok(results)
@@ -104,33 +94,18 @@ mod tests {
 
     #[test]
     fn deduplicates_pool_ids() {
-        // Same pool_id appearing in multiple positions should only be fetched once
-        let ids = vec![
-            Pubkey::new_unique(),
-            Pubkey::new_unique(),
-        ];
-
+        let ids = vec![Pubkey::new_unique(), Pubkey::new_unique()];
         let mut seen = HashSet::new();
-        for id in &ids {
-            seen.insert(*id);
-        }
-
-        // Add duplicates
-        for id in ids.iter() {
-            seen.insert(*id);
-        }
-
+        for id in &ids { seen.insert(*id); }
+        for id in &ids { seen.insert(*id); }
         assert_eq!(seen.len(), 2);
     }
 
     #[test]
     fn chunks_pools_correctly() {
-        let pools: Vec<Pubkey> = (0..7)
-            .map(|_| Pubkey::new_unique())
-            .collect();
-
+        let pools: Vec<Pubkey> = (0..7).map(|_| Pubkey::new_unique()).collect();
         let chunks: Vec<&[Pubkey]> = pools.chunks(MAX_CONCURRENT_POOLS).collect();
-        assert_eq!(chunks.len(), 3); // 3 + 3 + 1
+        assert_eq!(chunks.len(), 3);
         assert_eq!(chunks[0].len(), 3);
         assert_eq!(chunks[1].len(), 3);
         assert_eq!(chunks[2].len(), 1);
