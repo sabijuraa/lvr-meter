@@ -1,4 +1,10 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
+
+#[derive(Debug, Clone, ValueEnum)]
+pub enum OutputFormat {
+    Table,
+    Json,
+}
 
 #[derive(Parser, Debug)]
 #[command(
@@ -7,27 +13,25 @@ use clap::Parser;
     version = "0.1.0"
 )]
 pub struct Cli {
-    /// Solana wallet address to analyze
     #[arg(long)]
     pub wallet: String,
 
-    /// Start date in YYYY-MM-DD format
     #[arg(long)]
     pub from: String,
 
-    /// End date in YYYY-MM-DD format
     #[arg(long)]
     pub to: String,
 
-    /// Protocol to analyze: raydium, orca, or both
     #[arg(long, default_value = "both")]
     pub protocol: String,
 
-    /// Specific pool address to filter by (optional)
     #[arg(long)]
     pub pool: Option<String>,
 
-    /// Print config summary and exit without hitting the network
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Output format: table (default) or json
+    #[arg(long, value_enum, default_value = "table")]
+    pub output: OutputFormat,
 }
