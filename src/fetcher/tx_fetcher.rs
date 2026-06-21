@@ -17,9 +17,23 @@ pub fn fetch_transactions_for_pool(
     cache:      &TxCache,
     client:     &RpcClientWrapper,
 ) -> Result<Vec<EncodedTransaction>> {
+    fetch_transactions_for_pool_with_progress(pool, slot_start, slot_end, cache, client, None)
+}
+
+/// Fetch with an optional progress callback: (page, tx_count_so_far)
+pub fn fetch_transactions_for_pool_with_progress(
+    pool:       &Pubkey,
+    slot_start: u64,
+    slot_end:   u64,
+    cache:      &TxCache,
+    client:     &RpcClientWrapper,
+    on_page:    Option<&dyn Fn(usize, usize)>,
+) -> Result<Vec<EncodedTransaction>> {
     if cache.exists(pool, slot_start, slot_end) {
         tracing::info!("Cache hit for pool {} [{}-{}]", pool, slot_start, slot_end);
-        return Ok(cache.get(pool, slot_start, slot_end).unwrap_or_default());
+        let txs = cache.get(pool, slot_start, slot_end).unwrap_or_default();
+        if let Some(cb) = on_page { cb(0, txs.len()); }
+        return Ok(txs);
     }
 
     tracing::info!("Cache miss — fetching transactions for pool {}", pool);
@@ -42,9 +56,7 @@ pub fn fetch_transactions_for_pool(
             client.client.get_signatures_for_address_with_config(pool, config)
         })?;
 
-        if sigs.is_empty() {
-            break;
-        }
+        if sigs.is_empty() { break; }
 
         let in_range: Vec<_> = sigs
             .iter()
@@ -54,7 +66,7 @@ pub fn fetch_transactions_for_pool(
         let reached_start = sigs.last().map(|s| s.slot <= slot_start).unwrap_or(false);
 
         tracing::info!(
-            "Page {} for pool {} — {} signatures in range, {} total so far",
+            "Page {} for pool {} — {} in range, {} total so far",
             page, pool, in_range.len(), all_txs.len()
         );
 
@@ -70,9 +82,10 @@ pub fn fetch_transactions_for_pool(
 
         cache.set(pool, slot_start, slot_end, &all_txs)?;
 
-        if reached_start || sigs.len() < SIGNATURES_PER_PAGE {
-            break;
-        }
+        // Fire progress callback
+        if let Some(cb) = on_page { cb(page, all_txs.len()); }
+
+        if reached_start || sigs.len() < SIGNATURES_PER_PAGE { break; }
 
         before = sigs
             .last()
