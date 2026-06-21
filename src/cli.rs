@@ -31,7 +31,10 @@ pub struct Cli {
     #[arg(long)]
     pub dry_run: bool,
 
-    /// Output format: table (default) or json
     #[arg(long, value_enum, default_value = "table")]
     pub output: OutputFormat,
+
+    /// Bypass cache and re-fetch all transactions from the network
+    #[arg(long)]
+    pub no_cache: bool,
 }

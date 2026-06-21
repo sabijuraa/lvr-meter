@@ -42,8 +42,8 @@ fn main() {
     // ── Phase 2 + 3: Fetch pipeline ──────────────────────────────────────────
     print_phase_header("Phase 2+3 — Fetching positions and transactions");
 
-    let pipeline = FetchPipeline::new(config)
-        .unwrap_or_else(|e| fatal("Failed to initialize fetch pipeline", e));
+    let pipeline = FetchPipeline::new_with_options(config, cli.no_cache)
+    .unwrap_or_else(|e| fatal("Failed to initialize fetch pipeline", e));
 
     let fetch_result = pipeline
         .run_for_dates(date_range.from_date(), date_range.to_date())
