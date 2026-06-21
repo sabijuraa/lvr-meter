@@ -40,58 +40,56 @@ impl RpcClientWrapper {
         }
     }
 
-    pub fn call_with_retry<T, F>(&self, label: &str, f: F) -> Result<T>
-    where
-        F: Fn() -> Result<T, ClientError>,
-    {
-        self.rate_limiter
-            .lock()
-            .expect("rate limiter mutex poisoned")
-            .acquire();
+    pub fn call_with_retry<T, F>(&self, label: &str, mut f: F) -> Result<T>
+where
+    F: FnMut() -> Result<T, ClientError>,
+{
+    self.rate_limiter
+        .lock()
+        .expect("rate limiter mutex poisoned")
+        .acquire();
 
-        let mut last_err = None;
+    let mut last_err = None;
 
-        for attempt in 0..=self.max_retries {
-            match f() {
-                Ok(value) => {
-                    if attempt > 0 {
-                        info!("{} succeeded on attempt {}", label, attempt + 1);
-                    }
-                    return Ok(value);
+    for attempt in 0..=self.max_retries {
+        match f() {
+            Ok(value) => {
+                if attempt > 0 {
+                    info!("{} succeeded on attempt {}", label, attempt + 1);
                 }
-                Err(e) => {
-                    if !is_retryable(&e) {
-                        return Err(anyhow!("{} failed (non-retryable): {}", label, e));
-                    }
+                return Ok(value);
+            }
+            Err(e) => {
+                if !is_retryable(&e) {
+                    return Err(anyhow!("{} failed (non-retryable): {}", label, e));
+                }
 
-                    let wait_ms = self.timeout_ms * 2_u64.pow(attempt);
-                    warn!(
-                        "{} failed (attempt {}/{}): {}. Retrying in {}ms...",
-                        label,
-                        attempt + 1,
-                        self.max_retries + 1,
-                        e,
-                        wait_ms,
-                    );
+                let wait_ms = self.timeout_ms * 2_u64.pow(attempt);
+                warn!(
+                    "{} failed (attempt {}/{}): {}. Retrying in {}ms...",
+                    label,
+                    attempt + 1,
+                    self.max_retries + 1,
+                    e,
+                    wait_ms,
+                );
 
-                    last_err = Some(e);
+                last_err = Some(e);
 
-                    if attempt < self.max_retries {
-                        thread::sleep(Duration::from_millis(wait_ms));
-                    }
+                if attempt < self.max_retries {
+                    thread::sleep(Duration::from_millis(wait_ms));
                 }
             }
         }
-
-        Err(anyhow!(
-            "{} failed after {} attempts: {}",
-            label,
-            self.max_retries + 1,
-            last_err.unwrap()
-        ))
     }
-}
 
+    Err(anyhow!(
+        "{} failed after {} attempts: {}",
+        label,
+        self.max_retries + 1,
+        last_err.unwrap()
+    ))
+}}
 fn is_retryable(err: &ClientError) -> bool {
     let msg = err.to_string().to_lowercase();
     msg.contains("429")
