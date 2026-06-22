@@ -12,7 +12,6 @@ jobs:
   build-release:
     name: Build Release Binary
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -41,7 +40,6 @@ jobs:
     needs: build-release
     permissions:
       contents: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -60,21 +58,18 @@ jobs:
 
             ### Install
 
-            Download the binary, make it executable, and run:
+            Download the binary, make it executable and run:
 
-```bash
-            chmod +x lvr-meter
-            ./lvr-meter --wallet <wallet> --from 2025-01-01 --to 2025-03-31
-```
+                chmod +x lvr-meter
+                ./lvr-meter --wallet <wallet> --from 2025-01-01 --to 2025-03-31
 
             ### Requirements
 
-            - Helius API key (free tier at helius.dev)
-            - Set environment variable: `export HELIUS_API_KEY=your_key`
+            - Helius API key (free at helius.dev)
+            - Set HELIUS_API_KEY environment variable before running
 
             ### What changed
 
-            See [CHANGELOG.md](CHANGELOG.md) for full details.
+            See CHANGELOG.md for full details.
           draft: false
           prerelease: false
-         
